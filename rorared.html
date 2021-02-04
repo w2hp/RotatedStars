@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang='zh-cmn-Hans'>
+<head>
+<meta charset='utf-8' />
+<title>雷达探点</title>
+<style type="text/css">
+body {background: #000; color: #f0f0f0;}
+div {margin: auto; padding: 0; width: 1600px; position: relative;}
+select {margin-right: 20px;}
+input {margin-right: 20px;}
+button {margin: 10px 10px 10px 0; padding: 3px 5px; color: #000; cursor: pointer;}
+button[disabled=disabled] {color: #999; cursor: default;}
+canvas {background: transparent; cursor: default; position: absolute; top: 0; width: 1600px; height: 800px;}
+</style>
+<style id="__web-inspector-hide-shortcut-style__">
+.__web-inspector-hide-shortcut__, .__web-inspector-hide-shortcut__ *, .__web-inspector-hidebefore-shortcut__::before, .__web-inspector-hideafter-shortcut__::after
+{
+    visibility: hidden !important;
+}
+</style>
+</head>
+
+<body>
+<div>
+    <h1>雷达探点</h1>
+    点数量：<input type='text' id='pointNum' value="5000"><!--<select id='pointNum'>
+        <option value='1000'>1000</option>
+        <option value='2000'>2000</option>
+        <option value='4000'>4000</option>
+    </select>-->
+    可视角：<input type='text' id='angle' value="20"><!--<select id='angle'>
+        <option value='15'>15</option>
+        <option value='25'>25</option>
+        <option value='35'>35</option>
+    </select>-->
+    速度：<input type='text' id='speed' value="0.5"><!--<select id='speed'>
+        <option value='1'>慢</option>
+        <option value='2'>中</option>
+        <option value='3'>快</option>
+    </select>-->
+    点大小：<input type='text' id='pointSize' value="2.5"><!--<select id='pointSize'>
+        <option value='2'>小</option>
+        <option value='2.5'>中</option>
+        <option value='3'>大</option>
+    </select>-->
+    彩色点：<input type='checkbox' id='colorLength'>
+    雷达线：<input type='checkbox' id='raidLine'>
+    <br />
+    <button id='btInit'>生成点</button>
+    <button id='btFind' disabled='disabled'>开始找</button>
+    <button id='btMarker' disabled='disabled'>找到了</button>
+    <button id='btMessage'>规则及说明(点击切换隐藏和显示)</button>
+    <br />
+    <textarea id='message' class='' style="height:170px;width:1200px;resize:none;" readonly>
+    代码参考https://www.cnblogs.com/etopx/p/6687124.html?utm_source=itdadao&utm_medium=referral，在原来的基础上，修改让整个代码更符合原始规则，并修复原来的点生成bug。
+    支持调整点数量，可视角度，速度和点大小，调整幅度可为小数，影响程度请自行尝试
+    规则：
+    非彩色点：找到仅存在左边不存在右边的点
+    彩色点：找到左右两边唯一一个颜色不同的点
+    使用介绍：
+    配置好参数后，点击生产点，等待生成完成，此时三个按钮均不可用
+    生成完成后，开始找按钮可用，点击开始
+    确定找到后，点击找到了按钮，选择一个找到的大致区域，区域大小为鼠标点击左右各设置参数角度大小
+    在区域中选择找到的点，成功或失败均会提示所用时间
+    </textarea>
+    <!-- <p>(x,y)</p> -->
+</div>
+<div>
+    <canvas id='canvasL' width='1600' height='800'></canvas>
+    <canvas id='canvasP' width='1600' height='800'></canvas>
+</div>
+
+<script type="text/javascript">
+var canvasL, ctxL, canvasP, ctxP;
+var pointData1, pointData2;
+var point = [];
+var pointSize = 2.5;
+var pointNum = 10;
+var hide = 0;
+var colorLength = 1, color = ['white', 'green', 'blue', 'red', 'yellow']; // purple，此处修改彩色点的其他颜色
+var speed = 1, angle = 35, ang = 0, radius = 380;
+var btInit, btFind, btMarker;
+var raf, find = false;
+var ts, te;
+window.onload = function(){
+    btInit = document.querySelector('#btInit');
+    btFind = document.querySelector('#btFind');
+    btMarker = document.querySelector('#btMarker');
+    btMessage = document.querySelector('#btMessage');
+    canvasL = document.querySelector('#canvasL');
+    canvasP = document.querySelector('#canvasP');
+    message = document.querySelector('#message');
+    ctxL = canvasL.getContext('2d');
+    ctxP = canvasP.getContext('2d');
+
+    btInit.addEventListener('click', function(){
+        message.setAttribute('class', '__web-inspector-hide-shortcut__');
+        message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
+        canvasP.removeAttribute('class', '__web-inspector-hide-shortcut__');
+        btInit.setAttribute('disabled', 'disabled');
+        btFind.setAttribute('disabled', 'disabled');
+        btMarker.setAttribute('disabled', 'disabled');
+        canvasP.style.cursor = 'default';
+        find = false;
+        main();
+    });
+    btMessage.addEventListener('click', function(){
+        if(message.getAttribute('class')==''){
+            message.setAttribute('class', '__web-inspector-hide-shortcut__');
+            message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
+        }
+        else{
+            message.setAttribute('style', 'height:170px;width:1200px;resize:none;');
+            message.setAttribute('class', '');
+        }
+    });
+    btFind.addEventListener('click', function(){
+        message.setAttribute('class', '__web-inspector-hide-shortcut__');
+        message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
+        btInit.setAttribute('disabled', 'disabled');
+        btFind.setAttribute('disabled', 'disabled');
+        btMarker.removeAttribute('disabled');
+        canvasP.style.cursor = 'default';
+        cancelAnimationFrame(raf);
+        angle = document.querySelector('#angle').value * 1;
+        speed = document.querySelector('#speed').value * 1;
+        ts = new Date().getTime();
+        find = false;
+        animation();
+    });
+    btMarker.addEventListener('click', function(){
+        message.setAttribute('class', '__web-inspector-hide-shortcut__');
+        message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
+        canvasP.setAttribute('class', '__web-inspector-hide-shortcut__');
+        btInit.removeAttribute('disabled');
+        btFind.removeAttribute('disabled');
+        canvasP.style.cursor = 'crosshair';
+        cancelAnimationFrame(raf);
+        te = new Date().getTime();
+        marker();
+    });
+    // canvasP.addEventListener('mousemove', function(event){
+    //     var x = Math.floor(event.clientX - this.getBoundingClientRect().left) - 400;
+    //     var y = Math.floor(event.clientY - this.getBoundingClientRect().top) - 400;
+    //     x = x>400 ? x-800 : x;
+    //     document.querySelector('p').textContent = '(' + x + ',' + -y + ')';
+    // })
+    
+    canvasL.addEventListener('click', function(event){
+        canvasP.removeAttribute('class', '__web-inspector-hide-shortcut__');
+        var x = Math.floor(event.clientX - this.getBoundingClientRect().left);
+        var y = Math.floor(event.clientY - this.getBoundingClientRect().top);
+        if (x>800) x-=800;
+        drArc = Math.atan2(400-y,x-400)*180 / Math.PI;
+        //alert(drArc);
+        if(drArc<0) drArc=360+drArc;
+        //alert(drArc);
+        endDrawArc(ctxP,400,400,360-drArc);
+        endDrawArc(ctxP,1200,400,360-drArc);
+        ctxL.clearRect(0,0,1600,800);
+    });
+    canvasP.addEventListener('click', function(event){
+        if (!find) return;
+        btFind.setAttribute('disabled', 'disabled');
+        btMarker.setAttribute('disabled', 'disabled');
+        var x = Math.floor(event.clientX - this.getBoundingClientRect().left)-400;
+        var y = Math.floor(event.clientY - this.getBoundingClientRect().top)-400;
+        if (x>800) x-=800;
+        point.push([x,y,0]);
+        find = false;
+        result();
+    });
+}
+function main(){
+    if (document.querySelector('#raidLine').checked){
+        ctxL.strokeStyle = '#345';
+        ctxL.lineWidth = 1;
+        drawLine(ctxL, 400,400);
+        drawLine(ctxL, 1200,400);
+    } else {
+        ctxL.clearRect(0,0, 1600,800);
+    }
+    pointSize = document.querySelector('#pointSize').value * 1;
+    pointNum = document.querySelector('#pointNum').value * 1;
+    if (document.querySelector('#colorLength').checked) colorLength = color.length;
+    else colorLength = 1;
+
+    ctxP.clearRect(0, 0, 1600, 800);
+    ctxP.lineWidth = 1;
+    ctxP.strokeStyle='#ccc';
+    pointData1 = ctxP.createImageData(800, 800);
+    pointData2 = ctxP.createImageData(800, 800);
+
+    var k = 0;
+    point = [];
+    hide = Math.floor(Math.random() * pointNum);
+    var draw = setInterval(function(){
+        var x,y;
+        for (var i = 0; i < 30; i++) {
+            do{
+                x = Math.floor(Math.random() * radius * 2 - radius);
+                y = Math.floor(Math.random() * radius * 2 - radius);
+            } while (x*x + y*y > radius*radius)
+            // console.log(y);
+            var c = Math.floor(Math.random() * colorLength);
+            if (checkPoint(x,y,c)){
+                k++;
+                drawPoint(ctxP, x,y,c);
+                // drawCircle(ctxP,x,y,pointSize,c);
+                point.push([x,y,c]);
+            }
+            if (k>=pointNum) {
+                clearInterval(draw);
+                pointData1 = ctxP.getImageData(0,0, 800,800);
+                pointData2 = ctxP.getImageData(800,0, 800,800);
+                btInit.removeAttribute('disabled');
+                btFind.removeAttribute('disabled');
+                break;
+            }
+        };
+    }, 30);
+}
+function drawLine(ctx, x,y){
+    ctx.save();
+    ctx.translate(x,y);
+    for (var i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.arc(0,0, 85+i*100, 0,2*Math.PI);
+        ctx.stroke();
+    };
+    for (var i = 0; i < 6; i++) {
+        ctx.rotate(Math.PI*30/180);
+        ctx.moveTo(-385,0);
+        ctx.lineTo(385,0);
+        ctx.stroke();
+    };
+    ctx.restore();
+}
+function drawPoint(ctx, x,y,c){
+    tmpc = c;
+    ctx.fillStyle = color[c];
+    ctx.fillRect(400+x,400+y, pointSize,pointSize);
+    if (hide != point.length)
+        ctx.fillRect(400+x+800,400+y, pointSize,pointSize);
+    else 
+    if (document.querySelector('#colorLength').checked){
+        do {
+            tmpc = Math.floor(Math.random() * colorLength);
+        }while (tmpc == c)
+        ctx.fillStyle = color[tmpc];
+        ctx.fillRect(400+x+800,400+y, pointSize,pointSize);
+    }
+}
+function drawCircle(ctx,x,y,Radius,c){
+    ctx.fillStyle = color[c];
+    ctx.beginPath();
+    ctx.arc(400+x,400+y,Radius,0,Math.PI*2,true);
+    if (hide != point.length)
+        ctx.arc(400+x+800,400+y,Radius,0,Math.PI*2,true);
+    ctx.closePath();
+    ctx.fill();
+}
+function drawArc(ctx, x,y, ang){
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.arc(x,y, radius+10, Math.PI * ang/180, Math.PI * (360-angle + ang)/180);
+    ctx.fill();
+}
+function endDrawArc(ctx, x,y, ang){
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.arc(x,y, radius+10, Math.PI * (ang+angle/2)/180, Math.PI * (360-angle/2 + ang)/180);
+    ctx.fill();
+}
+function checkPoint(x, y, c){
+	var p = ctxP.getImageData(400+(x)-pointSize*1,400+(y)-pointSize*1, pointSize*3,pointSize*3);
+	// console.log(x);
+	// console.log(y);
+	// if (x>0 && y>0){
+	// 	p = ctxP.getImageData(400+(x-pointSize*3),400+(y-pointSize*3), pointSize*9,pointSize*9);
+	// }else if(x>0 && y<0){
+	// 	p = ctxP.getImageData(400+(x-pointSize*3),400+(y-pointSize*3), pointSize*9,pointSize*9);
+	// }else if(x<0 && y>0){
+	// 	p = ctxP.getImageData(400+(x-pointSize*3),400+(y-pointSize*3), pointSize*9,pointSize*9);
+	// }else if(x<0 && y<0){
+	// 	p = ctxP.getImageData(400+(x-pointSize*3),400+(y-pointSize*3), pointSize*9,pointSize*9);
+	// }
+    var pc = p.data;
+    // console.log(pc);
+    for (var i = 0; i < pc.length; i+=4) {
+        if (pc[i]!=0 || pc[i+1]!=0 || pc[i+2]!=0) {
+            return false;
+        }
+    };
+    return true;
+}
+function animation(){
+    // ctxP.clearRect(0, 0, 1600, 800);
+    ctxP.putImageData(pointData1, 0,0);
+    ctxP.putImageData(pointData2, 800,0);
+    drawArc(ctxP, 400,400, ang);
+    drawArc(ctxP, 1200,400, ang);
+    ang += speed;
+    raf = window.requestAnimationFrame(animation);
+}
+function marker(){
+    ctxL.strokeStyle = '#345';
+    ctxL.lineWidth = 1;
+    ctxP.clearRect(0, 0, 800, 800);
+    ctxP.clearRect(800, 0, 800, 800);
+    drawLine(ctxL, 400,400);
+    drawLine(ctxL, 1200,400);
+    ctxP.putImageData(pointData1, 0,0);
+    ctxP.putImageData(pointData2, 800,0);
+    find = true;
+}
+function result(){
+    ctxP.lineWidth = 3;
+    ctxP.putImageData(pointData1, 0,0);
+    ctxP.putImageData(pointData2, 800,0);
+    ctxP.strokeStyle = 'orange';
+    ctxP.strokeRect(point[pointNum][0]-10+400,point[pointNum][1]-10+400, 20,20);
+    ctxP.strokeRect(point[pointNum][0]-10+400+800,point[pointNum][1]-10+400, 20,20);
+    ctxP.strokeStyle = 'red';
+    ctxP.strokeRect(point[hide][0]-10+400,point[hide][1]-10+400, 20,20);
+    ctxP.strokeRect(point[hide][0]-10+400+800,point[hide][1]-10+400, 20,20);
+    // alert(point[hide]);
+    // alert(point[pointNum])
+    if ( Math.abs(point[hide][0]-point[pointNum][0])<10 && Math.abs(point[hide][1]-point[pointNum][1])<10 ) {
+        alert('找到了！\n' + '用时：' + (te-ts) + ' 毫秒');
+    } else {
+        alert('错误！\n' + '用时：' + (te-ts) + ' 毫秒');
+    }
+}
+</script>
+
+</body>
+</html>
