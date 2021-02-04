@@ -49,7 +49,9 @@ canvas {background: transparent; cursor: default; position: absolute; top: 0; wi
     <button id='btInit'>生成点</button>
     <button id='btFind' disabled='disabled'>开始找</button>
     <button id='btMarker' disabled='disabled'>找到了</button>
+    <button id='btRetry' disabled='disabled'>再试一次</button>
     <button id='btMessage'>规则及说明(点击切换隐藏和显示)</button>
+    <input id='tips' value='等待开始' style="width:300px;color:red;font-size:14px;font-weight:900;" readonly />
     <br />
     <textarea id='message' class='' style="height:170px;width:1200px;resize:none;" readonly>
 代码参考https://www.cnblogs.com/etopx/p/6687124.html?utm_source=itdadao&utm_medium=referral，在原来的基础上，修改让整个代码更符合原始规则，并修复原来的点生成bug。
@@ -88,22 +90,27 @@ window.onload = function(){
     btFind = document.querySelector('#btFind');
     btMarker = document.querySelector('#btMarker');
     btMessage = document.querySelector('#btMessage');
+    btRetry = document.querySelector('#btRetry');
     canvasL = document.querySelector('#canvasL');
     canvasP = document.querySelector('#canvasP');
     message = document.querySelector('#message');
+    tips = document.querySelector('#tips');
     ctxL = canvasL.getContext('2d');
     ctxP = canvasP.getContext('2d');
 
     btInit.addEventListener('click', function(){
+        tips.value = "生成中...";
         message.setAttribute('class', '__web-inspector-hide-shortcut__');
         message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
         canvasP.removeAttribute('class', '__web-inspector-hide-shortcut__');
         btInit.setAttribute('disabled', 'disabled');
+        btRetry.setAttribute('disabled', 'disabled');
         btFind.setAttribute('disabled', 'disabled');
         btMarker.setAttribute('disabled', 'disabled');
         canvasP.style.cursor = 'default';
         find = false;
         main();
+        tips.value = "生成完成，点击开始找按钮以开始";
     });
     btMessage.addEventListener('click', function(){
         if(message.getAttribute('class')==''){
@@ -116,6 +123,7 @@ window.onload = function(){
         }
     });
     btFind.addEventListener('click', function(){
+        if(tips.value == "生成完成，点击开始找按钮以开始") tips.value = "开始找点，点击找到了以结束";
         message.setAttribute('class', '__web-inspector-hide-shortcut__');
         message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
         btInit.setAttribute('disabled', 'disabled');
@@ -130,15 +138,34 @@ window.onload = function(){
         animation();
     });
     btMarker.addEventListener('click', function(){
+        btFind.setAttribute('disabled', 'disabled');
+        if(tips.value == "开始找点，点击找到了以结束") tips.value = "找到点，请选择大致范围";
         message.setAttribute('class', '__web-inspector-hide-shortcut__');
         message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
         canvasP.setAttribute('class', '__web-inspector-hide-shortcut__');
         btInit.removeAttribute('disabled');
-        btFind.removeAttribute('disabled');
+        // btFind.removeAttribute('disabled');
         canvasP.style.cursor = 'crosshair';
         cancelAnimationFrame(raf);
         te = new Date().getTime();
         marker();
+    });
+    btRetry.addEventListener('click', function(){
+        point.pop();
+        if(tips.value == "本次游戏结束，点击生成点以重新开始") tips.value = "开始找点，点击找到了以结束";
+        message.setAttribute('class', '__web-inspector-hide-shortcut__');
+        message.setAttribute('style', 'height:0px;width:1200px;resize:none;');
+        btInit.setAttribute('disabled', 'disabled');
+        btFind.setAttribute('disabled', 'disabled');
+        btRetry.setAttribute('disabled', 'disabled');
+        btMarker.removeAttribute('disabled');
+        canvasP.style.cursor = 'default';
+        cancelAnimationFrame(raf);
+        angle = document.querySelector('#angle').value * 1;
+        speed = document.querySelector('#speed').value * 1;
+        ts = new Date().getTime();
+        find = false;
+        animation();
     });
     // canvasP.addEventListener('mousemove', function(event){
     //     var x = Math.floor(event.clientX - this.getBoundingClientRect().left) - 400;
@@ -148,6 +175,7 @@ window.onload = function(){
     // })
     
     canvasL.addEventListener('click', function(event){
+        if(tips.value == "找到点，请选择大致范围") tips.value = "请选择具体位置";
         canvasP.removeAttribute('class', '__web-inspector-hide-shortcut__');
         var x = Math.floor(event.clientX - this.getBoundingClientRect().left);
         var y = Math.floor(event.clientY - this.getBoundingClientRect().top);
@@ -162,7 +190,8 @@ window.onload = function(){
     });
     canvasP.addEventListener('click', function(event){
         if (!find) return;
-        btFind.setAttribute('disabled', 'disabled');
+        if(tips.value == "请选择具体位置") tips.value = "本次游戏结束，点击生成点以重新开始";
+        // btFind.setAttribute('disabled', 'disabled');
         btMarker.setAttribute('disabled', 'disabled');
         var x = Math.floor(event.clientX - this.getBoundingClientRect().left)-400;
         var y = Math.floor(event.clientY - this.getBoundingClientRect().top)-400;
@@ -170,6 +199,7 @@ window.onload = function(){
         point.push([x,y,0]);
         find = false;
         result();
+        btRetry.removeAttribute('disabled', 'disabled');
     });
 }
 function main(){
