@@ -352,13 +352,13 @@ function result(){
     ctxP.putImageData(pointData1, 0,0);
     ctxP.putImageData(pointData2, 800,0);
     ctxP.strokeStyle = 'orange';
-    alert(point[pointNum]);
+    // alert(point[pointNum]);
     ctxP.strokeRect(point[pointNum][0]-10,point[pointNum][1]-10, 20,20);
     ctxP.strokeRect(point[pointNum][0]-10+800,point[pointNum][1]-10, 20,20);
     ctxP.strokeStyle = 'red';
     ctxP.strokeRect(point[hide][0]-10+400,point[hide][1]-10+400, 20,20);
     ctxP.strokeRect(point[hide][0]-10+400+800,point[hide][1]-10+400, 20,20);
-    alert(point[hide]);
+    // alert(point[hide]);
     // alert(point[pointNum])
     if ( Math.abs(point[hide][0]+400-point[pointNum][0])<10 && Math.abs(point[hide][1]+400-point[pointNum][1])<10 ) {
         alert('找到了！\n' + '用时：' + (te-ts) + ' 毫秒');
